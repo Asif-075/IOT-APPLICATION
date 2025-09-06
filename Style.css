@@ -1,0 +1,254 @@
+/* Reset & base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background: #121417;
+  color: #e1e2e6;
+  padding: 2rem;
+  min-height: 100vh;
+}
+
+.dashboard {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Patient card */
+.patient-card {
+  background: #1e2233;
+  padding: 1.5rem 1.75rem; /* Reduced padding for mobile */
+  border-radius: 16px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6);
+  margin-bottom: 2rem;
+  transition: background 0.3s ease;
+}
+
+.patient-card:hover {
+  background: #272c43;
+}
+
+.patient-card h2 {
+  font-weight: 700;
+  font-size: 1.6rem;
+  margin-bottom: 1rem;
+  color: #4ade80;
+}
+
+.patient-info {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.patient-info p {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.patient-info strong {
+  color: #60a5fa;
+}
+
+/* Button */
+.download-btn {
+  background: #3b82f6;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 6px 15px rgba(59, 130, 246, 0.4);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.download-btn:hover {
+  background: #2563eb;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.6);
+}
+
+/* Data section (mobile stacked) */
+.data-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  max-width: 100%;
+}
+
+/* Table container */
+.table-container {
+  background: #1e2233;
+  padding: 1rem 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.7);
+  width: 100%;
+  overflow-x: auto; /* Allow horizontal scroll if needed on mobile */
+}
+
+.table-container h3 {
+  color: #4ade80;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+  table-layout: fixed;
+  min-width: 600px; /* Ensure horizontal scroll on small screens */
+}
+
+th, td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.9rem;
+  border: none;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+thead th {
+  color: #60a5fa;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+tbody tr {
+  background: #272c43;
+  border-radius: 10px;
+  transition: background 0.3s ease;
+}
+
+tbody tr:hover {
+  background: #3a4062;
+}
+
+tbody td {
+  color: #cbd5e1;
+}
+
+/* Color coding for status */
+tbody td:last-child {
+  font-weight: 700;
+}
+
+tbody tr td:last-child:contains('Normal') {
+  color: #4ade80;
+}
+
+tbody tr td:last-child:contains('Alert') {
+  color: #ef4444;
+}
+
+tbody tr td:last-child:contains('Warning') {
+  color: #facc15;
+}
+
+/* Chart card */
+.chart-card {
+  background: #1e2233;
+  padding: 1rem 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.7);
+  height: 300px; /* Reduced height for mobile */
+  width: 100%;
+  min-width: 0;
+  flex: none;
+}
+
+/* Larger screens: side by side */
+@media (min-width: 900px) {
+  .data-section {
+    flex-direction: row;
+    gap: 2.5rem;
+  }
+
+  .table-container {
+    max-width: 700px;
+    padding: 2rem;
+    overflow-x: hidden;
+    flex-shrink: 0;
+  }
+
+  .chart-card {
+    flex: 1;
+    padding: 2rem;
+    height: 420px; /* Larger height on desktop */
+    width: auto;
+  }
+
+  th, td {
+    font-size: 1rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .patient-card {
+    padding: 2rem 2.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .patient-info {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .patient-info p {
+    font-size: 1.1rem;
+    line-height: 1.5;
+  }
+
+  .download-btn {
+    padding: 0.85rem 2rem;
+    font-size: 1.15rem;
+  }
+}
+
+/* -------------------------- */
+/* STATUS‐COLUMN COLOR CODING */
+/* -------------------------- */
+
+/* “Normal” status (green) */
+tbody td.status-normal {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+/* “Warning” status (yellow) */
+tbody td.status-warning {
+  color: #facc15;
+  font-weight: 700;
+}
+
+/* “Alert” status (red) */
+tbody td.status-alert {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+/* If you also want a subtle background‐shade per status, you could add something like: */
+tbody tr td.status-normal {
+  background: rgba(74, 222, 128, 0.1);
+  border-radius: 4px;
+}
+
+tbody tr td.status-warning {
+  background: rgba(250, 204, 21, 0.1);
+  border-radius: 4px;
+}
+
+tbody tr td.status-alert {
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 4px;
+}

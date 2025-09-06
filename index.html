@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="Style.css">
+  <title>Patient Health Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Include jsPDF Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Include jsPDF AutoTable plugin -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.17/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="patient-card">
+      <h2>Patient Overview</h2>
+      <div class="patient-info">
+        <div>
+          <p><strong>Name:</strong> Abdullah Al Faisal</p>
+          <p><strong>ID:</strong> P123456</p>
+        </div>
+        <div>
+          <p><strong>Gender:</strong> Male</p>
+          <p><strong>Age:</strong> 25</p>
+        </div>
+        <div>
+          <p><strong>Blood Group:</strong> O+</p>
+        </div>
+      </div>
+      <button class="download-btn" onclick="downloadReport()">Download Full Report</button>
+    </div>
+
+    <div class="data-section">
+      <div class="table-container">
+        <h3>Health Monitoring Data</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Heart Rate (bpm)</th>
+              <th>SpO₂ (%)</th>
+              <th>Temperature (°C)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Data rows inserted dynamically -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="chart-card">
+        <canvas id="healthChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const sheetId = '1HGxB4WWdY4RJr1RY0adfwUjtk99g-S9jLDGcNt9Sa5I'; 
+  const sheetName = 'PKB467';
+  const sheetURL = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${sheetName}`;
+
+  let rowsData = []; 
+  let lastProcessedRowId = null; // A unique ID for the last row that was checked
+  let isProcessing = false; // Prevents race conditions with setInterval
+
+  function parseGoogleSheetJSON(responseText) {
+    const jsonText = responseText.substring(
+      responseText.indexOf('{'),
+      responseText.lastIndexOf('}') + 1
+    );
+    return JSON.parse(jsonText);
+  }
+
+  function parseDateString(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const regex = /Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)/;
+    const match = regex.exec(dateStr);
+    if (!match) return null;
+
+    const year = parseInt(match[1]);
+    const month = parseInt(match[2]);
+    const day = parseInt(match[3]);
+    const hour = match[4] ? parseInt(match[4]) : 0;
+    const minute = match[5] ? parseInt(match[5]) : 0;
+    const second = match[6] ? parseInt(match[6]) : 0;
+
+    return new Date(year, month, day, hour, minute, second);
+  }
+
+  function formatDate(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '';
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  }
+
+  function formatTime(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '';
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  }
+
+  // A unique identifier for a row based on its values
+  function getRowId(row) {
+    return JSON.stringify(row);
+  }
+
+  async function fetchAndProcessData(isInitialLoad) {
+    // If a process is already running, prevent a new one from starting
+    if (isProcessing) {
+      console.log('Processing is already in progress, skipping this interval.');
+      return;
+    }
+    isProcessing = true;
+
+    try {
+      const res = await fetch(sheetURL);
+      const text = await res.text();
+      const data = parseGoogleSheetJSON(text);
+
+      rowsData = data.table.rows.map(row =>
+        row.c ? row.c.map(cell => (cell ? cell.v : '')) : []
+      );
+      
+      updateTable(rowsData);
+      updateChart(rowsData);
+
+      if (rowsData.length > 0) {
+        const lastRow = rowsData[rowsData.length - 1];
+        const lastRowId = getRowId(lastRow);
+
+        if (isInitialLoad) {
+          // On initial load, just update the tracker and don't send any SMS.
+          lastProcessedRowId = lastRowId;
+        } else if (lastRowId !== lastProcessedRowId) {
+          // This is a new row detected after the initial load
+          const hrValue = parseFloat(lastRow[3]) || 0;
+          const spo2Value = parseInt(lastRow[4]) || 0;
+          const tempValue = parseFloat(lastRow[5]) || 0;
+          const statusText = computeStatus(hrValue, spo2Value, tempValue);
+
+          if (statusText === 'Alert') {
+            const alertMsg = `⚠️ Patient Alert!\nHR: ${hrValue} bpm, SpO₂: ${spo2Value}%, Temp: ${tempValue}°C`;
+            sendSMSAlert(alertMsg);
+          }
+          // Update the tracker to the new row ID to prevent future duplicate sends.
+          lastProcessedRowId = lastRowId;
+        }
+      }
+
+    } catch (error) {
+      console.error('Error fetching Google Sheet data:', error);
+    } finally {
+      // Ensure the processing flag is always reset, even if an error occurs.
+      isProcessing = false;
+    }
+  }
+
+  function computeStatus(heartRate, spo2, temperature) {
+    if (spo2 < 90 || heartRate > 100 || temperature > 38) {
+      return 'Alert';
+    }
+    if (
+      (spo2 >= 90 && spo2 <= 94) ||
+      (heartRate >= 90 && heartRate <= 100) ||
+      (temperature >= 37.5 && temperature <= 38)
+    ) {
+      return 'Warning';
+    }
+    return 'Normal';
+  }
+
+  function sendSMSAlert(message) {
+    fetch("http://localhost:3000/send-sms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: "01830454454", // destination phone number
+        message: message
+      })
+    })
+    .then(res => res.json())
+    .then(data => console.log("SMS Response:", data))
+    .catch(err => console.error("Error sending SMS:", err));
+  }
+
+  function updateTable(rows) {
+    const tbody = document.querySelector('table tbody');
+    tbody.innerHTML = '';
+
+    rows.forEach(row => {
+      const tr = document.createElement('tr');
+
+      const tdDate = document.createElement('td');
+      tdDate.textContent = formatDate(parseDateString(row[1]));
+      tr.appendChild(tdDate);
+
+      const tdTime = document.createElement('td');
+      tdTime.textContent = formatTime(parseDateString(row[2]));
+      tr.appendChild(tdTime);
+
+      const hrValue = parseFloat(row[3]) || 0;
+      const tdBPM = document.createElement('td');
+      tdBPM.textContent = row[3] ?? '';
+      tr.appendChild(tdBPM);
+
+      const spo2Value = parseInt(row[4]) || 0;
+      const tdSpO2 = document.createElement('td');
+      tdSpO2.textContent = row[4] ?? '';
+      tr.appendChild(tdSpO2);
+
+      const tempValue = parseFloat(row[5]) || 0;
+      const tdTemp = document.createElement('td');
+      tdTemp.textContent = row[5] ?? '';
+      tr.appendChild(tdTemp);
+
+      const statusText = computeStatus(hrValue, spo2Value, tempValue);
+      const tdStatus = document.createElement('td');
+      tdStatus.textContent = statusText;
+      if (statusText === 'Normal') tdStatus.classList.add('status-normal');
+      else if (statusText === 'Warning') tdStatus.classList.add('status-warning');
+      else if (statusText === 'Alert') tdStatus.classList.add('status-alert');
+      tr.appendChild(tdStatus);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updateChart(rows) {
+    const dates = rows.map(r => formatDate(parseDateString(r[1])));
+    const heartRates = rows.map(r => parseFloat(r[3]) || 0);
+    const spO2s = rows.map(r => parseInt(r[4]) || 0);
+    const temperatures = rows.map(r => parseFloat(r[5]) || 0);
+
+    const ctx = document.getElementById('healthChart').getContext('2d');
+    if (window.myChart) window.myChart.destroy();
+
+    window.myChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [
+          {
+            label: 'Heart Rate (bpm)',
+            data: heartRates,
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239,68,68,0.2)',
+            tension: 0.3,
+            yAxisID: 'y',
+          },
+          {
+            label: 'Temperature (°C)',
+            data: temperatures,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.2)',
+            tension: 0.3,
+            yAxisID: 'y1',
+          },
+          {
+            label: 'SpO₂ (%)',
+            data: spO2s,
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16,185,129,0.2)',
+            tension: 0.3,
+            yAxisID: 'y2',
+          },
+        ],
+      },
+      options: { responsive: true }
+    });
+  }
+
+  function downloadReport() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(16);
+    doc.text('Patient Health Report', 20, 20);
+
+    // Patient Details
+    doc.setFontSize(12);
+    doc.text(`Name: Abdullah Al Faisal`, 20, 30);
+    doc.text(`ID: P123456`, 20, 40);
+    doc.text(`Gender: Male`, 20, 50);
+    doc.text(`Age: 25`, 20, 60);
+    doc.text(`Blood Group: O+`, 20, 70);
+
+    doc.text('Health Monitoring Chart:', 20, 85);
+    const chartCanvas = document.getElementById('healthChart');
+    const chartImage = chartCanvas.toDataURL('image/png', 2.0);
+    doc.addImage(chartImage, 'PNG', 20, 95, 180, 100);
+
+    doc.text('Health Monitoring Data:', 20, 190);
+    const tableData = rowsData.map(row => [
+      formatDate(parseDateString(row[1])),
+      formatTime(parseDateString(row[2])),
+      row[3],
+      row[4],
+      row[5],
+      computeStatus(parseFloat(row[3]), parseInt(row[4]), parseFloat(row[5]))
+    ]);
+    doc.autoTable({
+      startY: 200,
+      head: [['Date', 'Time', 'Heart Rate (bpm)', 'SpO₂ (%)', 'Temperature (°C)', 'Status']],
+      body: tableData,
+    });
+
+    doc.save('patient_report.pdf');
+  }
+
+  fetchAndProcessData(true); // Initial load, do not send SMS
+  setInterval(() => fetchAndProcessData(false), 15000); // Subsequent calls
+</script>
+</body>
+</html>
